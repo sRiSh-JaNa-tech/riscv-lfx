@@ -1,78 +1,75 @@
 import time
 import os
 
-def clear_screen():
-    """Clears the terminal for simple animation."""
+# quick helper to clear terminal so it looks like a real animation
+def clear_term():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def draw_pegs(state, num_disks):
-    """
-    == ITERATION DEMONSTRATION ==
-    This function uses loops (iteration) to traverse the current 
-    state of the pegs and draw them layer by layer in the console.
-    """
-    clear_screen()
+def draw_board(pegs, total_disks):
+    # ITERATION DEMO: Using loops to draw the current state of the board layer by layer
+    clear_term()
     print("\n--- Tower of Hanoi ---\n")
     
-    # Iterate from the top layer down to the bottom
-    for level in range(num_disks - 1, -1, -1):
-        row_visual = ""
-        for peg in ['A', 'B', 'C']:
-            if level < len(state[peg]):
-                disk_size = state[peg][level]
-                # Draw the disk based on its size
-                disk_str = "█" * (disk_size * 2 - 1)
-                row_visual += disk_str.center(num_disks * 2)
+    # going from top to bottom
+    for level in range(total_disks - 1, -1, -1):
+        row_str = ""
+        for p in ['A', 'B', 'C']:
+            if level < len(pegs[p]):
+                disk_size = pegs[p][level]
+                # build the disk string based on size
+                disk = "=" * (disk_size * 2 - 1)
+                row_str += disk.center(total_disks * 2)
             else:
-                # Draw the empty peg pole
-                row_visual += "|".center(num_disks * 2)
-        print(row_visual)
+                # empty pole
+                row_str += "|".center(total_disks * 2)
+        print(row_str)
         
-    # Draw the base
-    print("=" * (num_disks * 6))
-    print("A".center(num_disks * 2) + "B".center(num_disks * 2) + "C".center(num_disks * 2))
+    # draw the base
+    print("-" * (total_disks * 6))
+    print("A".center(total_disks * 2) + "B".center(total_disks * 2) + "C".center(total_disks * 2))
     print("\n")
-    time.sleep(0.6) # Pause for animation effect
+    
+    time.sleep(0.5) # pause so we can actually see it move
 
-def move_disks(n, source, target, auxiliary, state, num_disks):
-    """
-    == RECURSION DEMONSTRATION ==
-    This function calls itself to solve smaller sub-problems.
-    It moves (n-1) disks out of the way, moves the largest disk, 
-    and then moves the (n-1) disks onto the target peg.
-    """
-    # Base Case for Recursion: Only 1 disk to move
+def solve_hanoi(n, source, target, aux, pegs, total_disks):
+    # RECURSION DEMO: The function calls itself to break down the problem
+    
+    # base case: only 1 disk left to move
     if n == 1:
-        disk = state[source].pop()
-        state[target].append(disk)
-        draw_pegs(state, num_disks)
+        disk = pegs[source].pop()
+        pegs[target].append(disk)
+        draw_board(pegs, total_disks)
         return
 
-    # Recursive Step 1: Move n-1 disks from source to auxiliary peg
-    move_disks(n - 1, source, auxiliary, target, state, num_disks)
+    # step 1: move n-1 disks out of the way to the aux peg
+    solve_hanoi(n - 1, source, aux, target, pegs, total_disks)
     
-    # Move the largest remaining disk to the target peg
-    disk = state[source].pop()
-    state[target].append(disk)
-    draw_pegs(state, num_disks)
+    # step 2: move the biggest disk to the target peg
+    disk = pegs[source].pop()
+    pegs[target].append(disk)
     
-    # Recursive Step 2: Move the n-1 disks from auxiliary peg to target peg
-    move_disks(n - 1, auxiliary, target, source, state, num_disks)
+    # print(f"Moved disk {disk} from {source} to {target}") # debug
+    
+    draw_board(pegs, total_disks)
+    
+    # step 3: move the n-1 disks from aux to target
+    solve_hanoi(n - 1, aux, target, source, pegs, total_disks)
+
 
 if __name__ == "__main__":
-    NUM_DISKS = 4
+    n_disks = 4
     
-    # Dictionary representing the 3 pegs as stacks (lists)
-    state = {
-        'A': [i for i in range(NUM_DISKS, 0, -1)], # Starts as [4, 3, 2, 1]
+    # using a dict of lists to act as stacks for the 3 pegs
+    pegs_state = {
+        'A': [i for i in range(n_disks, 0, -1)], # starts as [4, 3, 2, 1]
         'B': [],
         'C': []
     }
     
-    # Initial draw before starting
-    draw_pegs(state, NUM_DISKS)
+    # draw initial state before solving
+    draw_board(pegs_state, n_disks) 
     
-    # Start the recursive solver
-    move_disks(NUM_DISKS, 'A', 'C', 'B', state, NUM_DISKS)
+    # run the recursive solver
+    solve_hanoi(n_disks, 'A', 'C', 'B', pegs_state, n_disks)
     
-    print("Puzzle Solved successfully!\n")
+    print("Puzzle solved! \n")
