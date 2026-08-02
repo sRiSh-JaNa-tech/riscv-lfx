@@ -1,0 +1,85 @@
+name: Podman Flaky Test Analyzer
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "GitHub Actions run ID to analyze"
+        required: true
+        type: string
+      pr_number:
+        description: "PR number to annotate (optional)"
+        required: false
+        type: string
+
+  schedule:
+    - cron: "0 8 * * 1"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  analyze:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure')
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Podman repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --quiet \
+            httpx \
+            litellm \
+            openai
+
+      - name: Determine run ID
+        id: run_id
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_id=${{ github.event.inputs.run_id }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_id=${{ github.event.workflow_run.id }}" >> "$GITHUB_OUTPUT"
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Flaky Test Analyzer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LITELLM_MODEL: "gpt-4o"
+        run: |
+          cd hack/ci/flaky-analyzer
+          python main.py \
+            --run-id "${{ steps.run_id.outputs.run_id }}" \
+            ${{ steps.run_id.outputs.pr_number != '' && format('--pr {0}', steps.run_id.outputs.pr_number) || '' }} \
+            --output-json /tmp/flake-results.json
+
+      - name: Upload analysis results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flake-analysis-${{ steps.run_id.outputs.run_id }}
+          path: /tmp/flake-results.json
+          retention-days: 30
